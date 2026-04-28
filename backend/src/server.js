@@ -42,7 +42,11 @@ app.get("/health", (_req, res) => {
  */
 app.post("/chat", async (req, res) => {
   try {
-    const { transcript, personality = "friend", history = [], memory = "" } = req.body || {};
+    const body = req.body || {};
+    const transcript = body.transcript || body.message;
+    const personality = body.personality || "friend";
+    const history = body.history || [];
+    const memory = body.memory || body.memory_summary || "";
     if (!transcript || typeof transcript !== "string") {
       return res.status(400).json({ error: "transcript (string) required" });
     }

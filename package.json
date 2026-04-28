@@ -1,0 +1,9 @@
+{
+  "name": "saathi-ai",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "openai": "^4.77.0"
+  }
+}
