@@ -51,9 +51,11 @@ async function deleteReminderFromDB(id) {
 let _pushSubId = null;
 
 function getApiBase() {
+  const RAILWAY_URL = "https://taskvoiceai-production.up.railway.app";
   const base = import.meta.env?.VITE_API_BASE || "";
-  if (!base && typeof window !== "undefined" && window.location.hostname.includes("vercel.app")) return "/api";
-  return base;
+  if (base) return base;
+  if (typeof window !== "undefined" && window.location.hostname.includes("vercel.app")) return RAILWAY_URL;
+  return "";
 }
 
 export async function subscribeToPush() {
