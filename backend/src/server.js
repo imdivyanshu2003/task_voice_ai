@@ -43,7 +43,9 @@ if (!process.env.OPENAI_API_KEY) {
   console.warn("[saathi] WARNING: OPENAI_API_KEY not set. /chat will fail.");
 }
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = process.env.OPENAI_API_KEY
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  : null;
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true, model: MODEL, personalities: Object.keys(PERSONALITIES) });
@@ -60,6 +62,7 @@ app.get("/health", (_req, res) => {
  * returns: { mode, emotional_response, tasks[], next_suggestion }
  */
 app.post("/chat", async (req, res) => {
+  if (!openai) return res.status(503).json({ error: "OPENAI_API_KEY not configured" });
   try {
     const body = req.body || {};
     const transcript = body.transcript || body.message;
