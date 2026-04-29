@@ -1,7 +1,7 @@
-import { API_BASE, IS_VERCEL } from "../config";
+import { API_BASE, USE_SERVERLESS } from "../config";
 
 function apiUrl(path) {
-  if (IS_VERCEL) return `${API_BASE}/api${path}`;
+  if (USE_SERVERLESS) return `/api${path}`;
   return `${API_BASE}${path}`;
 }
 

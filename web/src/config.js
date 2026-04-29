@@ -1,5 +1,6 @@
-// API base. Empty = same-origin (works when backend serves the PWA via Express static).
-// In dev, Vite proxies /chat, /health, /memory to the Node backend on :8787.
-// On Vercel, API routes are at /api/*
+// API base URL.
+// - Empty = same-origin (Express serves PWA, or Vite proxy in dev)
+// - Set VITE_API_BASE to Railway URL for production (e.g. https://saathi-api.up.railway.app)
+// - On Vercel without VITE_API_BASE, falls back to /api serverless functions
 export const API_BASE = import.meta.env.VITE_API_BASE || "";
-export const IS_VERCEL = typeof window !== "undefined" && (window.location.hostname.includes("vercel.app") || import.meta.env.VITE_VERCEL === "1");
+export const USE_SERVERLESS = !API_BASE && typeof window !== "undefined" && window.location.hostname.includes("vercel.app");

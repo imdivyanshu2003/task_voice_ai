@@ -50,14 +50,15 @@ async function deleteReminderFromDB(id) {
 // --- Push subscription ---
 let _pushSubId = null;
 
-async function getApiBase() {
-  const isVercel = typeof window !== "undefined" && window.location.hostname.includes("vercel.app");
-  return isVercel ? "/api" : "";
+function getApiBase() {
+  const base = import.meta.env?.VITE_API_BASE || "";
+  if (!base && typeof window !== "undefined" && window.location.hostname.includes("vercel.app")) return "/api";
+  return base;
 }
 
 export async function subscribeToPush() {
   try {
-    const base = await getApiBase();
+    const base = getApiBase();
     const res = await fetch(`${base}/push/vapid-key`);
     const { publicKey } = await res.json();
     if (!publicKey) return null;
@@ -114,7 +115,7 @@ export async function addReminder({ taskId, taskTitle, remindAt, note }) {
 
   // Also schedule on the server for guaranteed delivery via push
   try {
-    const base = await getApiBase();
+    const base = getApiBase();
     await fetch(`${base}/push/reminder`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
