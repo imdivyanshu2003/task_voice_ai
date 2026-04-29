@@ -65,8 +65,12 @@ async function checkAndFireReminders() {
   for (const r of reminders) {
     if (!r.fired && r.remindAt <= now) {
       // Fire the notification
-      await self.registration.showNotification(`⏰ ${r.taskTitle}`, {
-        body: r.note || "Time to do this! — Saathi",
+      const timeStr = r.note || "";
+      const bodyText = timeStr
+        ? `You have to: ${r.taskTitle}\nScheduled for: ${timeStr}\n— Saathi`
+        : `You have to: ${r.taskTitle}\n— Saathi`;
+      await self.registration.showNotification(`⏰ Reminder`, {
+        body: bodyText,
         icon: "/icon-192.png",
         badge: "/icon-192.png",
         tag: `saathi-rem-${r.id}`,
