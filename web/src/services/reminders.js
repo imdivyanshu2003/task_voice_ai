@@ -116,11 +116,13 @@ export async function addReminder({ taskId, taskTitle, remindAt, note }) {
   // Also schedule on the server for guaranteed delivery via push
   try {
     const base = getApiBase();
-    await fetch(`${base}/push/reminder`, {
+    console.log("[reminder] scheduling on server:", { title: taskTitle, note, remindAt, subId: _pushSubId, base });
+    const pushRes = await fetch(`${base}/push/reminder`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title: taskTitle, note: note || "", remindAt, subId: _pushSubId }),
     });
+    console.log("[reminder] server response:", pushRes.status, await pushRes.clone().text());
   } catch (e) {
     console.warn("[push] server reminder schedule failed (local fallback active):", e);
   }
@@ -190,12 +192,14 @@ export function parseReminderTime(input) {
   const now = new Date();
   const lower = input.toLowerCase().trim();
 
-  // "in X minutes/hours"
-  const inMatch = lower.match(/in\s+(\d+)\s*(min|minute|minutes|hour|hours|hr|hrs)/);
+  // "in X minutes/hours" or just "X minutes/hours"
+  const inMatch = lower.match(/(?:in\s+)?(\d+)\s*(min|minute|minutes|second|seconds|sec|secs|hour|hours|hr|hrs)/);
   if (inMatch) {
     const val = parseInt(inMatch[1]);
-    const unit = inMatch[2].startsWith("h") ? 60 : 1;
-    return new Date(now.getTime() + val * unit * 60 * 1000);
+    const unit = inMatch[2].startsWith("h") ? 60 : inMatch[2].startsWith("s") ? 1/60 : 1;
+    const ms = Math.max(val * unit * 60 * 1000, 15000); // minimum 15 seconds
+    console.log(`[reminder] parsed relative time: ${val} ${inMatch[2]} = ${ms}ms from now`);
+    return new Date(now.getTime() + ms);
   }
 
   // "tomorrow" prefix

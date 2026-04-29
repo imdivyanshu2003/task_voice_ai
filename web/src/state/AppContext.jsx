@@ -99,9 +99,12 @@ export function AppProvider({ children }) {
       }
 
       // Process reminders from AI
+      console.log("[AI] reminders from response:", resp.reminders);
       if (Array.isArray(resp.reminders) && resp.reminders.length > 0) {
         for (const rem of resp.reminders) {
+          console.log("[AI] parsing reminder:", rem);
           const remindAt = parseReminderTime(rem.time);
+          console.log("[AI] parsed remindAt:", remindAt);
           if (remindAt) {
             await addReminder({ taskId: "", taskTitle: rem.title, remindAt, note: rem.time });
           }
