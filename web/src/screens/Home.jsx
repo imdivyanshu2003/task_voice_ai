@@ -1,8 +1,9 @@
 import { useRef, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Mic, Square, Send, CheckSquare, Settings, Keyboard, Loader2, Heart, Zap, Sparkles, ArrowRight, Shield, Copy, Share2, FileText, Map, Lightbulb, Calculator, PenTool, HelpCircle, Check, Bell } from "lucide-react";
+import { Mic, Square, Send, CheckSquare, Settings, Keyboard, Loader2, Heart, Zap, Sparkles, ArrowRight, Shield, Copy, Share2, FileText, Map, Lightbulb, Calculator, PenTool, HelpCircle, Check, Bell, BellRing } from "lucide-react";
 import { useApp } from "../state/AppContext";
 import { isSttSupported } from "../services/voice";
+import { requestNotificationPermission, subscribeToPush } from "../services/reminders";
 import { PERSONALITIES } from "../constants/personalities";
 
 const MOOD_COLORS = {
@@ -132,10 +133,21 @@ export default function Home() {
   const currentP = PERSONALITIES.find((p) => p.key === personality) || PERSONALITIES[0];
   const pendingTasks = tasks.filter((t) => !t.done).length;
   const moodColor = MOOD_COLORS[currentMood] || MOOD_COLORS.neutral;
+  const [notifBanner, setNotifBanner] = useState(
+    typeof Notification !== "undefined" && Notification.permission !== "granted" && Notification.permission !== "denied"
+  );
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, partial, isProcessing]);
+
+  const enableNotifs = async () => {
+    const perm = await requestNotificationPermission();
+    if (perm === "granted") {
+      await subscribeToPush();
+    }
+    setNotifBanner(false);
+  };
 
   const handleSend = () => {
     const t = text.trim();
@@ -167,6 +179,18 @@ export default function Home() {
           </button>
         </div>
       </div>
+
+      {/* Notification enable banner */}
+      {notifBanner && (
+        <div className="mx-4 mt-1 mb-1 flex items-center gap-3 bg-accent/10 border border-accent/20 rounded-2xl px-4 py-3">
+          <BellRing className="w-5 h-5 text-accent shrink-0" />
+          <p className="text-xs text-muted flex-1">Enable notifications for reminders</p>
+          <button onClick={enableNotifs} className="text-xs font-semibold text-accent bg-accent/20 px-3 py-1.5 rounded-xl">
+            Enable
+          </button>
+          <button onClick={() => setNotifBanner(false)} className="text-xs text-muted/50">✕</button>
+        </div>
+      )}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-2">

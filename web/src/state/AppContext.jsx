@@ -194,10 +194,10 @@ export function AppProvider({ children }) {
   // Start reminder checker, push subscription, in-app toasts + stop TTS on unmount
   useEffect(() => {
     startReminderChecker();
-    // Subscribe to server push for reliable background notifications
-    requestNotificationPermission().then((perm) => {
-      if (perm === "granted") subscribeToPush();
-    });
+    // Subscribe to server push if permission already granted (don't auto-request on mobile)
+    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+      subscribeToPush().catch(() => {});
+    }
     onInAppReminder((reminder) => {
       setActiveToast(reminder);
       // Auto-dismiss after 8 seconds
