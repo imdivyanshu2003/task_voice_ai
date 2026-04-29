@@ -53,7 +53,7 @@ let _pushSubId = null;
 function getApiBase() {
   const base = import.meta.env?.VITE_API_BASE || "";
   if (base) return base;
-  if (typeof window !== "undefined" && window.location.hostname.includes("vercel.app")) return "/api/proxy";
+  if (typeof window !== "undefined" && window.location.hostname.includes("vercel.app")) return "/r";
   return "";
 }
 

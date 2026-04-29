@@ -4,7 +4,11 @@
   "installCommand": "npm install && cd web && npm install",
   "framework": null,
   "rewrites": [
-    { "source": "/api/proxy/:path*", "destination": "/api/proxy/:path*" },
+    { "source": "/r/chat", "destination": "https://taskvoiceai-production.up.railway.app/chat" },
+    { "source": "/r/health", "destination": "https://taskvoiceai-production.up.railway.app/health" },
+    { "source": "/r/push/vapid-key", "destination": "https://taskvoiceai-production.up.railway.app/push/vapid-key" },
+    { "source": "/r/push/subscribe", "destination": "https://taskvoiceai-production.up.railway.app/push/subscribe" },
+    { "source": "/r/push/reminder", "destination": "https://taskvoiceai-production.up.railway.app/push/reminder" },
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
