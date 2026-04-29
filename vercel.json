@@ -4,6 +4,7 @@
   "installCommand": "npm install && cd web && npm install",
   "framework": null,
   "rewrites": [
+    { "source": "/api/proxy/:path*", "destination": "/api/proxy/:path*" },
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
