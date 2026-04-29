@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import { existsSync } from "fs";
 import OpenAI from "openai";
 import webPush from "web-push";
 import { buildSystemPrompt, PERSONALITIES } from "./prompts.js";
@@ -14,9 +15,10 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 
-// Serve the built PWA (after `npm run build` in ../web)
+// Serve the built PWA (after `npm run build` in ../web) — skip on Railway
 const webDist = join(__dirname, "../../web/dist");
-app.use(express.static(webDist));
+const hasWebDist = existsSync(webDist);
+if (hasWebDist) app.use(express.static(webDist));
 
 const PORT = process.env.PORT || 8787;
 const MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
@@ -231,9 +233,11 @@ setInterval(async () => {
 }, 15000);
 
 // SPA catch-all: serve index.html for any non-API route (PWA routing)
-app.get("*", (_req, res) => {
-  res.sendFile(join(webDist, "index.html"));
-});
+if (hasWebDist) {
+  app.get("*", (_req, res) => {
+    res.sendFile(join(webDist, "index.html"));
+  });
+}
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`[saathi] backend running on http://localhost:${PORT}`);
