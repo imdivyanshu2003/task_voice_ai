@@ -84,6 +84,7 @@ export default defineConfig({
       "/chat": "http://localhost:8787",
       "/health": "http://localhost:8787",
       "/memory": "http://localhost:8787",
+      "/push": "http://localhost:8787",
     },
   },
 });

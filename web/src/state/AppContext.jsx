@@ -5,7 +5,7 @@ import { VoiceController, speak, stopSpeaking } from "../services/voice";
 import {
   addReminder, getActiveReminders, removeReminder, clearAllReminders,
   requestNotificationPermission, startReminderChecker, parseReminderTime,
-  onInAppReminder,
+  onInAppReminder, subscribeToPush,
 } from "../services/reminders";
 
 const AppCtx = createContext(null);
@@ -188,9 +188,13 @@ export function AppProvider({ children }) {
     getActiveReminders().then(setReminders);
   }, []);
 
-  // Start reminder checker + listen for in-app toasts + stop TTS on unmount
+  // Start reminder checker, push subscription, in-app toasts + stop TTS on unmount
   useEffect(() => {
     startReminderChecker();
+    // Subscribe to server push for reliable background notifications
+    requestNotificationPermission().then((perm) => {
+      if (perm === "granted") subscribeToPush();
+    });
     onInAppReminder((reminder) => {
       setActiveToast(reminder);
       // Auto-dismiss after 8 seconds

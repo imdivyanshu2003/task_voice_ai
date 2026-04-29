@@ -136,6 +136,42 @@ self.addEventListener("notificationclick", (event) => {
   );
 });
 
+// ===== WEB PUSH — server-sent notifications (works even when app is fully closed) =====
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+  try {
+    const data = event.data.json();
+    const title = data.title || "⏰ Reminder";
+    const options = {
+      body: data.body || "You have a reminder — Saathi",
+      icon: data.icon || "/icon-192.png",
+      badge: data.badge || "/icon-192.png",
+      tag: data.tag || `saathi-push-${Date.now()}`,
+      requireInteraction: true,
+      vibrate: [200, 100, 200, 100, 200, 100, 200],
+      actions: [
+        { action: "open", title: "Open Saathi" },
+        { action: "dismiss", title: "Dismiss" },
+      ],
+      data: data.data || { url: "/home" },
+    };
+    event.waitUntil(
+      self.registration.showNotification(title, options).then(async () => {
+        // Also notify app if it's open for in-app toast
+        const clients = await self.clients.matchAll({ type: "window" });
+        for (const client of clients) {
+          client.postMessage({
+            type: "REMINDER_FIRED",
+            reminder: { taskTitle: data.body?.split("\n")[0]?.replace("You have to: ", "") || title, note: "" },
+          });
+        }
+      })
+    );
+  } catch (e) {
+    console.error("[sw] push parse error", e);
+  }
+});
+
 // Listen for messages from the app to sync reminders
 self.addEventListener("message", (event) => {
   if (event.data?.type === "SYNC_REMINDER") {

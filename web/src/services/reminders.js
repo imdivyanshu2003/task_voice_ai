@@ -47,6 +47,52 @@ async function deleteReminderFromDB(id) {
   });
 }
 
+// --- Push subscription ---
+let _pushSubId = null;
+
+async function getApiBase() {
+  const isVercel = typeof window !== "undefined" && window.location.hostname.includes("vercel.app");
+  return isVercel ? "/api" : "";
+}
+
+export async function subscribeToPush() {
+  try {
+    const base = await getApiBase();
+    const res = await fetch(`${base}/push/vapid-key`);
+    const { publicKey } = await res.json();
+    if (!publicKey) return null;
+
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
+    }
+
+    const saveRes = await fetch(`${base}/push/subscribe`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ subscription: sub.toJSON() }),
+    });
+    const { subId } = await saveRes.json();
+    _pushSubId = subId;
+    console.log("[push] subscribed:", subId);
+    return subId;
+  } catch (e) {
+    console.warn("[push] subscribe failed:", e);
+    return null;
+  }
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+}
+
 // --- Public API ---
 
 export async function addReminder({ taskId, taskTitle, remindAt, note }) {
@@ -61,9 +107,21 @@ export async function addReminder({ taskId, taskTitle, remindAt, note }) {
   };
   await putReminder(reminder);
 
-  // Tell the service worker about the new reminder
+  // Tell the service worker about the new reminder (local fallback)
   if (navigator.serviceWorker?.controller) {
     navigator.serviceWorker.controller.postMessage({ type: "SYNC_REMINDER", reminder });
+  }
+
+  // Also schedule on the server for guaranteed delivery via push
+  try {
+    const base = await getApiBase();
+    await fetch(`${base}/push/reminder`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: taskTitle, note: note || "", remindAt, subId: _pushSubId }),
+    });
+  } catch (e) {
+    console.warn("[push] server reminder schedule failed (local fallback active):", e);
   }
 }
 
