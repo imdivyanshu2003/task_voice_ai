@@ -5,6 +5,7 @@ import { VoiceController, speak, stopSpeaking } from "../services/voice";
 import {
   addReminder, getActiveReminders, removeReminder, clearAllReminders,
   requestNotificationPermission, startReminderChecker, parseReminderTime,
+  onInAppReminder,
 } from "../services/reminders";
 
 const AppCtx = createContext(null);
@@ -21,7 +22,8 @@ export function AppProvider({ children }) {
   const [error, setError] = useState(null);
   const [currentMood, setCurrentMood] = useState("neutral");
   const [followUp, setFollowUp] = useState("");
-  const [reminders, setReminders] = useState(getActiveReminders());
+  const [reminders, setReminders] = useState([]);
+  const [activeToast, setActiveToast] = useState(null);
 
   const voiceRef = useRef(new VoiceController());
 
@@ -101,10 +103,10 @@ export function AppProvider({ children }) {
         for (const rem of resp.reminders) {
           const remindAt = parseReminderTime(rem.time);
           if (remindAt) {
-            addReminder({ taskId: "", taskTitle: rem.title, remindAt, note: rem.time });
+            await addReminder({ taskId: "", taskTitle: rem.title, remindAt, note: rem.time });
           }
         }
-        setReminders(getActiveReminders());
+        setReminders(await getActiveReminders());
         // Ensure notification permission
         requestNotificationPermission();
       }
@@ -181,9 +183,21 @@ export function AppProvider({ children }) {
 
   const clearFacts = () => Storage.clearFacts();
 
-  // Start reminder checker + stop TTS on unmount
+  // Load reminders on mount
+  useEffect(() => {
+    getActiveReminders().then(setReminders);
+  }, []);
+
+  // Start reminder checker + listen for in-app toasts + stop TTS on unmount
   useEffect(() => {
     startReminderChecker();
+    onInAppReminder((reminder) => {
+      setActiveToast(reminder);
+      // Auto-dismiss after 8 seconds
+      setTimeout(() => setActiveToast(null), 8000);
+      // Vibrate
+      if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 200]);
+    });
     return () => stopSpeaking();
   }, []);
 
@@ -218,8 +232,9 @@ export function AppProvider({ children }) {
     currentMood, followUp,
     sendMessage, startListening, stopListening,
     toggleTask, deleteTask, askWhatNext, getGreeting,
-    reminders, removeReminder: (id) => { removeReminder(id); setReminders(getActiveReminders()); },
-    clearReminders: () => { clearAllReminders(); setReminders([]); },
+    reminders, activeToast, dismissToast: () => setActiveToast(null),
+    removeReminder: async (id) => { await removeReminder(id); setReminders(await getActiveReminders()); },
+    clearReminders: async () => { await clearAllReminders(); setReminders([]); },
     clearAll, clearChat, clearAllTasks, clearFacts,
     facts: Storage.getFacts(),
   };

@@ -1,46 +1,94 @@
-// Reminder system using Web Notifications API
-// Checks every 30 seconds for due reminders and fires notifications
+// Reminder system — uses IndexedDB + Service Worker for background notifications
+// Works even when app is swiped away from recents
 
-const REMINDER_KEY = "saathi_reminders";
+const DB_NAME = "saathi_reminders_db";
+const DB_VERSION = 1;
+const STORE_NAME = "reminders";
 
-function getReminders() {
+// --- IndexedDB helpers ---
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = (e) => {
+      e.target.result.createObjectStore(STORE_NAME, { keyPath: "id" });
+    };
+    req.onsuccess = (e) => resolve(e.target.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function getReminders() {
   try {
-    return JSON.parse(localStorage.getItem(REMINDER_KEY) || "[]");
+    const db = await openDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(STORE_NAME, "readonly");
+      const req = tx.objectStore(STORE_NAME).getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => resolve([]);
+    });
   } catch { return []; }
 }
 
-function saveReminders(reminders) {
-  localStorage.setItem(REMINDER_KEY, JSON.stringify(reminders));
+async function putReminder(reminder) {
+  const db = await openDB();
+  return new Promise((resolve) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    tx.objectStore(STORE_NAME).put(reminder);
+    tx.oncomplete = () => resolve();
+  });
 }
 
-export function addReminder({ taskId, taskTitle, remindAt, note }) {
-  const reminders = getReminders();
-  reminders.push({
+async function deleteReminderFromDB(id) {
+  const db = await openDB();
+  return new Promise((resolve) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    tx.objectStore(STORE_NAME).delete(id);
+    tx.oncomplete = () => resolve();
+  });
+}
+
+// --- Public API ---
+
+export async function addReminder({ taskId, taskTitle, remindAt, note }) {
+  const reminder = {
     id: `rem_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-    taskId,
+    taskId: taskId || "",
     taskTitle,
     note: note || "",
     remindAt: new Date(remindAt).getTime(),
     fired: false,
     createdAt: Date.now(),
-  });
-  saveReminders(reminders);
+  };
+  await putReminder(reminder);
+
+  // Tell the service worker about the new reminder
+  if (navigator.serviceWorker?.controller) {
+    navigator.serviceWorker.controller.postMessage({ type: "SYNC_REMINDER", reminder });
+  }
 }
 
-export function removeReminder(id) {
-  saveReminders(getReminders().filter((r) => r.id !== id));
+export async function removeReminder(id) {
+  await deleteReminderFromDB(id);
+  if (navigator.serviceWorker?.controller) {
+    navigator.serviceWorker.controller.postMessage({ type: "DELETE_REMINDER", id });
+  }
 }
 
-export function getActiveReminders() {
-  return getReminders().filter((r) => !r.fired);
+export async function getActiveReminders() {
+  const all = await getReminders();
+  return all.filter((r) => !r.fired);
 }
 
-export function getAllReminders() {
+export async function getAllReminders() {
   return getReminders();
 }
 
-export function clearAllReminders() {
-  localStorage.removeItem(REMINDER_KEY);
+export async function clearAllReminders() {
+  const all = await getReminders();
+  for (const r of all) await deleteReminderFromDB(r.id);
+  if (navigator.serviceWorker?.controller) {
+    navigator.serviceWorker.controller.postMessage({ type: "CLEAR_ALL_REMINDERS" });
+  }
 }
 
 // Request notification permission
@@ -52,72 +100,30 @@ export async function requestNotificationPermission() {
   return result;
 }
 
-// Fire a notification
-function fireNotification(title, body) {
-  if (Notification.permission !== "granted") return;
-
-  // Try vibration for mobile
-  if (navigator.vibrate) {
-    navigator.vibrate([200, 100, 200, 100, 200]); // ting-tong pattern
-  }
-
-  const notif = new Notification(title, {
-    body,
-    icon: "/icon-192.svg",
-    badge: "/icon-192.svg",
-    tag: `saathi-reminder-${Date.now()}`,
-    requireInteraction: true,
-    vibrate: [200, 100, 200, 100, 200],
-  });
-
-  // Play sound
-  try {
-    const audio = new Audio("data:audio/wav;base64,UklGRigBAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQBAABkAGkAbwBzAHYAdwB3AHUAcQBrAGQAXABTAEkAPwA1ACsAIQAYAA8ABwAAAPoA9ADvAOoA5gDjAOEA4ADgAOEA4wDmAOoA7wD0APoAAAEHAQ8BGAEhASsBNQE/AUkBUwFcAWQBawFxAXUBdwF3AXYBcwFvAGkAYwBcAFMASwBBADcALQAjABkAEAAIAAEA+wD1APAA6wDnAOQA4gDhAOEA4gDkAOcA6wDwAPUA+wABAAgAEAAZACIAKwA1AD8ASQBTAFwAZABrAHEAdQB3AHcAdgBzAG8AaQBjAFwAUwBLAEEANwAtACMAGQAQAAgAAQA=");
-    audio.volume = 0.7;
-    audio.play().catch(() => {});
-  } catch {}
-
-  notif.onclick = () => {
-    window.focus();
-    notif.close();
-  };
+// In-app toast listener — callback fired when reminder triggers while app is open
+let _inAppCallback = null;
+export function onInAppReminder(cb) {
+  _inAppCallback = cb;
 }
 
-// The checker — runs every 30 seconds
-let checkerInterval = null;
-
-function checkReminders() {
-  const now = Date.now();
-  const reminders = getReminders();
-  let changed = false;
-
-  reminders.forEach((r) => {
-    if (!r.fired && r.remindAt <= now) {
-      fireNotification(
-        `⏰ Reminder: ${r.taskTitle}`,
-        r.note || "Time to do this task!"
-      );
-      r.fired = true;
-      changed = true;
+// Listen for messages from service worker
+if (typeof navigator !== "undefined" && navigator.serviceWorker) {
+  navigator.serviceWorker.addEventListener("message", (event) => {
+    if (event.data?.type === "REMINDER_FIRED" && _inAppCallback) {
+      _inAppCallback(event.data.reminder);
     }
   });
-
-  if (changed) {
-    saveReminders(reminders);
-  }
 }
 
+// Start the SW checker (tell SW to check now)
 export function startReminderChecker() {
-  if (checkerInterval) return;
-  checkReminders(); // check immediately
-  checkerInterval = setInterval(checkReminders, 30000); // every 30s
+  if (navigator.serviceWorker?.controller) {
+    navigator.serviceWorker.controller.postMessage({ type: "CHECK_NOW" });
+  }
 }
 
 export function stopReminderChecker() {
-  if (checkerInterval) {
-    clearInterval(checkerInterval);
-    checkerInterval = null;
-  }
+  // no-op — SW handles its own lifecycle
 }
 
 // Parse time from user input like "5pm", "17:30", "in 30 minutes", "tomorrow 9am"
