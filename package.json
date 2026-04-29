@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "scripts": {
+    "start": "cd backend && npm start",
+    "install:backend": "cd backend && npm install"
+  },
   "dependencies": {
     "openai": "^4.77.0"
   }
